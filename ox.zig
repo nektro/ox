@@ -3,6 +3,12 @@ const string = []const u8;
 const zorm = @import("zorm");
 const ulid = @import("ulid");
 const extras = @import("extras");
+const http = @import("apple_pie");
+const jwt = @import("jwt");
+const cookies = @import("cookies");
+const root = @import("root");
+
+const epoch: i64 = 1577836800000; // 'Jan 1 2020' -> unix milli
 
 pub const sql = struct {
     //
@@ -10,7 +16,6 @@ pub const sql = struct {
     pub const Engine = zorm.engine(.sqlite3);
     pub var db: Engine = undefined;
 
-    const epoch: i64 = 1577836800000; // 'Jan 1 2020' -> unix milli
     pub var factory = ulid.Factory.init(epoch, std.crypto.random);
 
     pub const Order = enum {
@@ -245,4 +250,68 @@ pub const sql = struct {
             }
         };
     }
+};
+
+pub const www = struct {
+    //
+
+    pub var jwt_secret: string = "";
+
+    pub const token = struct {
+        const Payload = struct {
+            iss: string, // issuer
+            sub: string, // subject
+            iat: i64, // issued-at
+            exp: i64, // expiration
+            nbf: u64, // not-before
+        };
+
+        pub fn veryifyRequest(request: http.Request) !string {
+            const text = (try tokenFromRequest(request)) orelse return error.NoTokenFound;
+            const payload = try jwt.validate(Payload, request.arena, .HS256, text, .{ .key = jwt_secret });
+            return payload.sub;
+        }
+
+        fn tokenFromRequest(request: http.Request) !?string {
+            const T = fn (http.Request) anyerror!?string;
+            for (&[_]T{ tokenFromCookie, tokenFromHeader, tokenFromQuery }) |item| {
+                if (try item(request)) |thetoken| {
+                    return thetoken;
+                }
+            }
+            return null;
+        }
+
+        fn tokenFromHeader(request: http.Request) !?string {
+            const headers = try request.headers(request.arena);
+            // extra check caused by https://github.com/Luukdegram/apple_pie/issues/70
+            const auth = headers.get("Authorization") orelse headers.get("authorization");
+            if (auth == null) return null;
+            const ret = extras.trimPrefix(auth.?, "Bearer ");
+            if (ret.len == auth.?.len) return null;
+            return ret;
+        }
+
+        fn tokenFromCookie(request: http.Request) !?string {
+            const headers = try request.headers(request.arena);
+            const yum = try cookies.parse(request.arena, headers);
+            return yum.get("jwt");
+        }
+
+        fn tokenFromQuery(request: http.Request) !?string {
+            const q = try request.context.uri.queryParameters(request.arena);
+            return q.get("jwt");
+        }
+
+        pub fn encodeMessage(alloc: std.mem.Allocator, msg: string) !string {
+            const p = Payload{
+                .iss = root.name ++ ".r" ++ root.build_options.version,
+                .sub = msg,
+                .iat = std.time.timestamp(),
+                .exp = std.time.timestamp() + (std.time.s_per_day * 7),
+                .nbf = epoch / std.time.ms_per_s,
+            };
+            return try jwt.encode(alloc, .HS256, p, .{ .key = jwt_secret });
+        }
+    };
 };
