@@ -1,0 +1,6 @@
+id: uyg3m4nfvadv491yzn3do2cp8ooeweh21p3sgcumsodfo4wz
+name: ox
+main: ox.zig
+license: AGPL-3.0
+description: Opinionated web framework for Zig
+dependencies:
