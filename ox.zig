@@ -10,9 +10,10 @@ const root = @import("root");
 const pek = @import("pek");
 
 const epoch: i64 = 1577836800000; // 'Jan 1 2020' -> unix milli
+const top = @This();
 
 pub const sql = struct {
-    //
+    pub const up = top;
 
     pub const Engine = zorm.engine(.sqlite3);
     pub var db: Engine = undefined;
@@ -255,7 +256,7 @@ pub const sql = struct {
 };
 
 pub const www = struct {
-    //
+    pub const up = top;
 
     pub var jwt_secret: string = "";
 
