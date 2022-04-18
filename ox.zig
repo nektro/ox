@@ -7,6 +7,7 @@ const http = @import("apple_pie");
 const jwt = @import("jwt");
 const cookies = @import("cookies");
 const root = @import("root");
+const pek = @import("pek");
 
 const epoch: i64 = 1577836800000; // 'Jan 1 2020' -> unix milli
 
@@ -314,4 +315,77 @@ pub const www = struct {
             return try jwt.encode(alloc, .HS256, p, .{ .key = jwt_secret });
         }
     };
+
+    pub const SkipError = error{HttpNoOp};
+
+    pub fn writePageResponse(alloc: std.mem.Allocator, response: *http.Response, request: http.Request, comptime name: string, data: anytype) !void {
+        _ = request;
+        try response.headers.put("Content-Type", "text/html");
+
+        const w = response.writer();
+
+        if (root.oxwww_allowjson) {
+            const headers = try request.headers(alloc);
+            // extra check caused by https://github.com/Luukdegram/apple_pie/issues/70
+            if (std.mem.eql(u8, headers.get("Accept") orelse headers.get("accept") orelse "", "application/json")) {
+                try std.json.stringify(data, .{}, w);
+                return;
+            }
+        }
+
+        const head = root.files.@"/_header.pek";
+        const page = @field(root.files, name);
+        const tmpl = comptime pek.parse(head ++ page);
+        try pek.compile(root, alloc, w, tmpl, data);
+    }
+
+    pub fn assert(cond: bool, response: *http.Response, status: http.Response.Status, comptime fmt: string, args: anytype) !void {
+        if (!cond) {
+            return fail(response, status, fmt, args);
+        }
+    }
+
+    pub fn fail(response: *http.Response, status: http.Response.Status, comptime fmt: string, args: anytype) (http.Response.Writer.Error || SkipError) {
+        response.status_code = status;
+        try response.writer().print(fmt ++ "\n", args);
+        return error.HttpNoOp;
+    }
+
+    pub const HandlerFunc = fn next(void, *http.Response, http.Request, ?*const anyopaque) anyerror!void;
+
+    pub fn Route(comptime f: anytype) HandlerFunc {
+        return struct {
+            pub fn next(_: void, response: *http.Response, request: http.Request, captures: ?*const anyopaque) !void {
+                f({}, response, request, captures) catch |err| {
+                    if (@as(anyerror, err) == error.HttpNoOp) return;
+                    return err;
+                };
+            }
+        }.next;
+    }
+
+    pub fn isLoggedIn(request: http.Request) !bool {
+        const x = token.veryifyRequest(request) catch |err| switch (err) {
+            error.NoTokenFound, error.InvalidSignature => return false,
+            else => return err,
+        };
+        // don't need to waste hops to the db to check if its a value user ID because
+        // if the signature is valid we know it came from us
+        _ = x;
+        return true;
+    }
+
+    pub fn redirectTo(response: *http.Response, dest: string) !void {
+        try response.headers.put("Location", dest);
+        try response.writeHeader(.found);
+    }
+
+    pub fn logout(_: void, response: *http.Response, request: http.Request, captures: ?*const anyopaque) !void {
+        std.debug.assert(captures == null);
+        _ = response;
+        _ = request;
+
+        try cookies.delete(response, "jwt");
+        try redirectTo(response, "./");
+    }
 };

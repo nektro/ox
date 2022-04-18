@@ -10,3 +10,4 @@ dependencies:
   - src: git https://github.com/Luukdegram/apple_pie
   - src: git https://github.com/leroycep/zig-jwt
   - src: git https://gist.github.com/nektro/a0045048d8e7458e42520e9ffb90becd # cookies
+  - src: git https://github.com/nektro/zig-pek
