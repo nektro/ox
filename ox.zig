@@ -17,6 +17,7 @@ pub const sql = struct {
     pub const Engine = zorm.engine(.sqlite3);
     pub var db: Engine = undefined;
 
+    pub const ULID = ulid.ULID;
     pub var factory = ulid.Factory.init(epoch, std.crypto.random);
 
     pub const Order = enum {
