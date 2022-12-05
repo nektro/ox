@@ -3,6 +3,7 @@ name: ox
 main: ox.zig
 license: AGPL-3.0
 description: Opinionated web framework for Zig
+min_zig_version: 0.10.0-dev.4099+d3d24874c
 dependencies:
   - src: git https://github.com/nektro/zig-zorm
   - src: git https://github.com/nektro/zig-ulid

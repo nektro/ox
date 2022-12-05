@@ -103,14 +103,14 @@ pub const sql = struct {
     }
 
     fn Foo(comptime name: string, comptime T: type) type {
-        return Struct(&[_]std.builtin.TypeInfo.StructField{structField(name, T)});
+        return Struct(&[_]std.builtin.Type.StructField{structField(name, T)});
     }
 
-    fn Struct(comptime fields: []const std.builtin.TypeInfo.StructField) type {
+    fn Struct(comptime fields: []const std.builtin.Type.StructField) type {
         return @Type(.{ .Struct = .{ .layout = .Auto, .fields = fields, .decls = &.{}, .is_tuple = false } });
     }
 
-    fn structField(comptime name: string, comptime T: type) std.builtin.TypeInfo.StructField {
+    fn structField(comptime name: string, comptime T: type) std.builtin.Type.StructField {
         return .{ .name = name, .field_type = T, .default_value = null, .is_comptime = false, .alignment = @alignOf(T) };
     }
 
@@ -126,10 +126,10 @@ pub const sql = struct {
     }
 
     fn Merge(comptime T: type) type {
-        var fields: []const std.builtin.TypeInfo.StructField = &.{};
+        var fields: []const std.builtin.Type.StructField = &.{};
         inline for (std.meta.fields(T)) |item| {
             const f = std.meta.fields(item.field_type)[0];
-            fields = fields ++ &[_]std.builtin.TypeInfo.StructField{structField(f.name, f.field_type)};
+            fields = fields ++ &[_]std.builtin.Type.StructField{structField(f.name, f.field_type)};
         }
         return Struct(fields);
     }
@@ -169,7 +169,7 @@ pub const sql = struct {
         }
     }
 
-    fn fieldsToCols(comptime fields: []const std.builtin.TypeInfo.StructField) []const [2]string {
+    fn fieldsToCols(comptime fields: []const std.builtin.Type.StructField) []const [2]string {
         comptime {
             var result: [fields.len][2]string = undefined;
             for (fields) |item, i| {
@@ -179,7 +179,7 @@ pub const sql = struct {
         }
     }
 
-    fn colToCol(comptime field: std.builtin.TypeInfo.StructField) [2]string {
+    fn colToCol(comptime field: std.builtin.Type.StructField) [2]string {
         return [_]string{
             field.name,
             typeToSqliteType(field.field_type),
@@ -321,7 +321,6 @@ pub const www = struct {
     pub const SkipError = error{HttpNoOp};
 
     pub fn writePageResponse(alloc: std.mem.Allocator, response: *http.Response, request: http.Request, comptime name: string, data: anytype) !void {
-        _ = request;
         try response.headers.put("Content-Type", "text/html");
 
         const w = response.writer();
@@ -353,7 +352,7 @@ pub const www = struct {
         return error.HttpNoOp;
     }
 
-    pub const HandlerFunc = fn next(void, *http.Response, http.Request, ?*const anyopaque) anyerror!void;
+    pub const HandlerFunc = fn (void, *http.Response, http.Request, ?*const anyopaque) anyerror!void;
 
     pub fn Route(comptime f: anytype) HandlerFunc {
         return struct {
@@ -384,7 +383,6 @@ pub const www = struct {
 
     pub fn logout(_: void, response: *http.Response, request: http.Request, captures: ?*const anyopaque) !void {
         std.debug.assert(captures == null);
-        _ = response;
         _ = request;
 
         try cookies.delete(response, "jwt");
