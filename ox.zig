@@ -376,9 +376,11 @@ pub const www = struct {
         return true;
     }
 
-    pub fn redirectTo(response: *http.Response, dest: string) !void {
+    const RedirectError = error{OutOfMemory} || http.Response.Error || error{HttpNoOp};
+    pub fn redirectTo(response: *http.Response, dest: string) RedirectError {
         try response.headers.put("Location", dest);
         try response.writeHeader(.found);
+        return error.HttpNoOp;
     }
 
     pub fn logout(_: void, response: *http.Response, request: http.Request, captures: ?*const anyopaque) !void {
